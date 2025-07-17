@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+
+{% block title %}Home - ACNSMS{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<div class="hero-section bg-primary text-white py-5 mb-5 rounded">
+    <div class="container text-center">
+        <h1 class="display-4 mb-4">
+            <i class="fas fa-calendar-alt me-3"></i>
+            Welcome to ACNSMS
+        </h1>
+        <p class="lead mb-4">
+            Automated Campus Notification and Schedule Management System
+        </p>
+        <p class="mb-4">
+            Streamline your academic scheduling with real-time notifications, 
+            smart rescheduling, and seamless Google Calendar integration.
+        </p>
+        
+        {% if not current_user.is_authenticated %}
+        <div class="d-flex justify-content-center gap-3">
+            <a href="{{ url_for('login') }}" class="btn btn-light btn-lg">
+                <i class="fas fa-sign-in-alt me-2"></i>Login
+            </a>
+            <a href="{{ url_for('register') }}" class="btn btn-outline-light btn-lg">
+                <i class="fas fa-user-plus me-2"></i>Register
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Features Section -->
+<div class="row mb-5">
+    <div class="col-md-4 mb-4">
+        <div class="card h-100 shadow-sm">
+            <div class="card-body text-center">
+                <i class="fas fa-bell fa-3x text-primary mb-3"></i>
+                <h5 class="card-title">Real-time Notifications</h5>
+                <p class="card-text">
+                    Get instant email and SMS notifications for schedule changes, 
+                    ensuring you never miss important updates.
+                </p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4 mb-4">
+        <div class="card h-100 shadow-sm">
+            <div class="card-body text-center">
+                <i class="fas fa-calendar-check fa-3x text-success mb-3"></i>
+                <h5 class="card-title">Smart Scheduling</h5>
+                <p class="card-text">
+                    AI-powered scheduling suggestions help lecturers find optimal 
+                    time slots and avoid conflicts automatically.
+                </p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4 mb-4">
+        <div class="card h-100 shadow-sm">
+            <div class="card-body text-center">
+                <i class="fab fa-google fa-3x text-warning mb-3"></i>
+                <h5 class="card-title">Google Calendar Integration</h5>
+                <p class="card-text">
+                    Seamlessly sync with Google Calendar for unified schedule 
+                    management across all your devices.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Role-based Access Section -->
+<div class="row mb-5">
+    <div class="col-12">
+        <h2 class="text-center mb-4">Role-based Access Control</h2>
+    </div>
+    
+    <div class="col-md-4 mb-3">
+        <div class="card border-primary">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="fas fa-user-graduate me-2"></i>Students</h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-unstyled">
+                    <li><i class="fas fa-check text-success me-2"></i>View schedules</li>
+                    <li><i class="fas fa-check text-success me-2"></i>Receive notifications</li>
+                    <li><i class="fas fa-check text-success me-2"></i>Access calendar view</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4 mb-3">
+        <div class="card border-success">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0"><i class="fas fa-chalkboard-teacher me-2"></i>Lecturers</h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-unstyled">
+                    <li><i class="fas fa-check text-success me-2"></i>Create schedules</li>
+                    <li><i class="fas fa-check text-success me-2"></i>Reschedule lectures</li>
+                    <li><i class="fas fa-check text-success me-2"></i>Manage their classes</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4 mb-3">
+        <div class="card border-warning">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0"><i class="fas fa-user-shield me-2"></i>Administrators</h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-unstyled">
+                    <li><i class="fas fa-check text-success me-2"></i>Full system access</li>
+                    <li><i class="fas fa-check text-success me-2"></i>User management</li>
+                    <li><i class="fas fa-check text-success me-2"></i>System analytics</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Technology Stack Section -->
+<div class="row">
+    <div class="col-12">
+        <div class="card bg-light">
+            <div class="card-body">
+                <h3 class="text-center mb-4">Powered by Modern Technologies</h3>
+                <div class="row text-center">
+                    <div class="col-md-2 col-sm-4 col-6 mb-3">
+                        <i class="fab fa-python fa-2x text-primary"></i>
+                        <p class="mt-2 small">Flask/Python</p>
+                    </div>
+                    <div class="col-md-2 col-sm-4 col-6 mb-3">
+                        <i class="fas fa-database fa-2x text-success"></i>
+                        <p class="mt-2 small">MariaDB</p>
+                    </div>
+                    <div class="col-md-2 col-sm-4 col-6 mb-3">
+                        <i class="fab fa-google fa-2x text-warning"></i>
+                        <p class="mt-2 small">Google Calendar</p>
+                    </div>
+                    <div class="col-md-2 col-sm-4 col-6 mb-3">
+                        <i class="fas fa-envelope fa-2x text-info"></i>
+                        <p class="mt-2 small">Email/SMS</p>
+                    </div>
+                    <div class="col-md-2 col-sm-4 col-6 mb-3">
+                        <i class="fas fa-robot fa-2x text-danger"></i>
+                        <p class="mt-2 small">AI Scheduling</p>
+                    </div>
+                    <div class="col-md-2 col-sm-4 col-6 mb-3">
+                        <i class="fas fa-chart-bar fa-2x text-secondary"></i>
+                        <p class="mt-2 small">Power BI</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

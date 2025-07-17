@@ -1,0 +1,258 @@
+{% extends "base.html" %}
+
+{% block title %}Schedules - ACNSMS{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2>Schedule Management</h2>
+            {% if current_user.role in ['admin', 'lecturer'] %}
+            <button class="btn btn-primary" onclick="showScheduleModal()">
+                <i class="fas fa-plus"></i> 
+            </button>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="row mb-3">
+    <div class="col-md-6">
+        <button class="btn btn-outline-primary" onclick="showScheduleTable()">
+            <i class="fas fa-table"></i> Table View
+        </button>
+        <button class="btn btn-outline-success" onclick="showCalendarView()">
+            <i class="fas fa-calendar"></i> Calendar View
+        </button>
+    </div>
+    <div class="col-md-6 text-end">
+        <button class="btn btn-outline-info" onclick="openGoogleCalendar()">
+            <i class="fab fa-google"></i> Open Google Calendar
+        </button>
+    </div>
+</div>
+
+<!-- Table View -->
+<div id="tableView" style="display: none;">
+    <div class="card">
+        <div class="card-body">
+            <h5 class="mb-3">Scheduled Classes</h5>
+            {% if schedules %}
+            <table class="table table-bordered table-hover">
+                <thead class="table-light">
+                    <tr>
+                        <th>Date</th>
+                        <th>Time</th>
+                        <th>Subject</th>
+                        <th>Room</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for schedule in schedules %}
+                    <tr>
+                        <td>{{ schedule.date.strftime('%d/%m/%Y') }}</td>
+                        <td>{{ schedule.start_time.strftime('%H:%M') }} - {{ schedule.end_time.strftime('%H:%M') }}</td>
+                        <td>{{ schedule.module.name }}</td>
+                        <td>{{ schedule.room.name }}</td>
+                        <td><span class="badge bg-secondary">{{ schedule.status }}</span></td>
+                        <td>
+                            {% if current_user.role in ['admin', 'lecturer'] %}
+                            <button class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#rescheduleModal">
+                                <i class="fas fa-sync-alt"></i> Reschedule
+                            </button>
+                            {% else %}
+                            <span class="text-muted">No actions</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="alert alert-info">No schedules available.</div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Calendar View -->
+<div id="calendarView" style="display: none;">
+    <div class="card">
+        <div class="card-body text-center">
+            <i class="fas fa-calendar-alt fa-3x text-muted mb-3"></i>
+            <h5>Calendar View Coming Soon</h5>
+            <p class="text-muted">This feature will show a calendar of your schedules.</p>
+        </div>
+    </div>
+</div>
+
+<!-- Default Content -->
+<div id="defaultContent">
+    <div class="card">
+        <div class="card-body text-center">
+            <i class="fas fa-calendar-alt fa-3x text-muted mb-3"></i>
+            <h5>Select a view to see schedules</h5>
+            <p class="text-muted">Choose between table view or calendar view to manage your schedules.</p>
+        </div>
+    </div>
+</div>
+
+<!-- Reschedule Placeholder Modal -->
+<div class="modal fade" id="rescheduleModal" tabindex="-1" aria-labelledby="rescheduleModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Coming Soon</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        Rescheduling functionality will be implemented in a future update.
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function showScheduleTable() {
+   document.getElementById('tableView').style.display = 'block';
+    document.getElementById('calendarView').style.display = 'none';
+    document.getElementById('defaultContent').style.display = 'none';
+
+    fetch('/api/schedules')
+        .then(response => response.json())
+        .then(data => {
+            const tbody = document.querySelector('#tableView tbody');
+            tbody.innerHTML = ''; // clear old rows
+
+            if (data.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" class="text-center">No schedules available.</td></tr>`;
+                return;
+            }
+
+            data.forEach(schedule => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${formatDate(schedule.date)}</td>
+                    <td>${schedule.start_time} - ${schedule.end_time}</td>
+                    <td>${schedule.subject}</td>
+                    <td>-</td>
+                    <td><span class="badge bg-secondary">${schedule.status}</span></td>
+                    <td>
+                        <button class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#rescheduleModal">
+                            <i class="fas fa-sync-alt"></i> Reschedule
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        })
+        .catch(error => {
+            console.error("Failed to load schedule table:", error);
+            showToast("Error loading schedule data.", "danger");
+        });
+}
+
+function formatDate(dateStr) {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-GB'); // dd/mm/yyyy
+}
+
+function showCalendarView() {
+    document.getElementById('tableView').style.display = 'none';
+    document.getElementById('calendarView').style.display = 'block';
+    document.getElementById('defaultContent').style.display = 'none';
+}
+
+function openGoogleCalendar() {
+    window.open("https://calendar.google.com", "_blank");
+}
+
+function saveSchedule() {
+    const form = document.getElementById("scheduleForm");
+    const formData = new FormData(form);
+
+    const data = {
+        date: formData.get("date"),
+        start_time: formData.get("start_time"),
+        end_time: formData.get("end_time"),
+        room_id: parseInt(formData.get("room_id")),
+        program_id: parseInt(formData.get("program_id")),
+        module_id: parseInt(formData.get("module_id")),
+        subject: ""  // optional, but backend expects it (you can remove this if backend no longer expects it)
+    };
+
+    fetch("/api/schedules", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify(data)
+    })
+    .then(res => res.json())
+    .then(result => {
+        //if (result.status === 'success') {
+        if (result.success) {
+            //showToast("Schedule saved successfully!", "success");
+            //showScheduleTable();
+            //const modal = bootstrap.Modal.getInstance(document.getElementById("scheduleModal"));
+            //if (modal) modal.hide();
+            //form.reset();
+            // ###############################################
+            const tbody = document.querySelector('#tableView tbody');
+            const newRow = document.createElement('tr');
+            newRow.innerHTML = `
+                <td>${result.schedule.date}</td>
+                <td>${result.schedule.start_time} - ${result.schedule.end_time}</td>
+                <td>${result.schedule.module_name}</td>
+                <td>${result.schedule.room_name}</td>
+                <td><span class="badge bg-secondary">${result.schedule.status}</span></td>
+                <td>
+                    <button class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#rescheduleModal">
+                        <i class="fas fa-sync-alt"></i> Reschedule
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(newRow);
+            //####################################################
+        } else {
+            showToast("Error saving schedule: " + result.message, "danger");
+        }
+    })
+    .catch(err => {
+        console.error(err);
+        showToast("Error saving schedule: " + err.message, "danger");
+    });
+}
+
+
+function showToast(message, type = "info") {
+    const toast = document.createElement("div");
+    toast.className = `toast align-items-center text-white bg-${type} border-0 show position-fixed bottom-0 end-0 m-4`;
+    toast.style.zIndex = 9999;
+    toast.role = "alert";
+    toast.innerHTML = `
+        <div class="d-flex">
+            <div class="toast-body">
+                ${message}
+            </div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+        </div>
+    `;
+    document.body.appendChild(toast);
+    setTimeout(() => {
+        toast.remove();
+    }, 4000);
+}
+
+$(document).ready(function () {
+    showScheduleTable();
+});
+</script>
+{% endblock %}
