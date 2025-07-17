@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Dashboard - ACNSMS{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2>Admin Dashboard</h2>
+        <p>Welcome, {{ current_user.fName }} {{ current_user.lName }}!</p>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <!-- Statistics Cards -->
+    <div class="col-md-3">
+        <div class="card bg-primary text-white">
+            <div class="card-body">
+                <h5>Total Users</h5>
+                <h3>150</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <h5>Active Schedules</h5>
+                <h3>45</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-warning text-white">
+            <div class="card-body">
+                <h5>This Week</h5>
+                <h3>12</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-info text-white">
+            <div class="card-body">
+                <h5>Notifications Sent</h5>
+                <h3>89</h3>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5>Quick Actions</h5>
+            </div>
+            <div class="card-body">
+                <button class="btn btn-primary mb-2" onclick="showScheduleModal()">
+                    <i class="fas fa-plus"></i> Add Schedule
+                </button><br>
+                <button class="btn btn-success mb-2" onclick="showUserManagement()">
+                    <i class="fas fa-users"></i> Manage Users
+                </button><br>
+                <button class="btn btn-info mb-2" onclick="showReports()">
+                    <i class="fas fa-chart-bar"></i> View Reports
+                </button>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5>Recent Activity</h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-unstyled">
+                    <li><i class="fas fa-calendar"></i> New schedule added for Programming</li>
+                    <li><i class="fas fa-user"></i> New lecturer registered</li>
+                    <li><i class="fas fa-edit"></i> Schedule rescheduled for Database Systems</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

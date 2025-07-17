@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+
+{% block title %}Student Dashboard - ACNSMS{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2>Student Dashboard</h2>
+        <p>Welcome, {{ current_user.fName }} {{ current_user.lName }}!</p>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <!-- Statistics Cards -->
+    <div class="col-md-4">
+        <div class="card bg-primary text-white">
+            <div class="card-body">
+                <h5>Total Modules</h5>
+                <h3>6</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <h5>This Week</h5>
+                <h3>12</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card bg-info text-white">
+            <div class="card-body">
+                <h5>Completed</h5>
+                <h3>8</h3>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5>Quick Actions</h5>
+            </div>
+            <div class="card-body">
+                <button class="btn btn-primary mb-2" onclick="showScheduleTable()">
+                    <i class="fas fa-table"></i> View Schedule
+                </button><br>
+                <button class="btn btn-info mb-2" onclick="showCalendarView()">
+                    <i class="fas fa-calendar"></i> Calendar View
+                </button><br>
+                <button class="btn btn-success mb-2" onclick="openGoogleCalendar()">
+                    <i class="fab fa-google"></i> Google Calendar
+                </button>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5>Upcoming Classes</h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-unstyled">
+                    <li><strong>Programming Fundamentals</strong><br>Tomorrow, 9:00 AM - Room 101</li>
+                    <li><strong>Database Systems</strong><br>Friday, 2:00 PM - Lab 2</li>
+                    <li><strong>Web Development</strong><br>Monday, 10:00 AM - Lab 1</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
