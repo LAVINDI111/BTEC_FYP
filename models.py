@@ -25,11 +25,12 @@ class User(UserMixin, db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     # Relationships
-    schedules = db.relationship('Schedule', backref='lecturer', lazy=True)
+    #schedules = db.relationship('Schedule', backref='lecturer', lazy=True)
+    schedules = db.relationship('Schedule', back_populates='lecturer', lazy=True)
     reschedules = db.relationship('Reschedule', backref='updated_by_user', lazy=True)
     audit_logs = db.relationship('AuditLog', backref='user', lazy=True)
     notifications = db.relationship('NotificationLog', backref='user', lazy=True)
-
+    
 # ----------------------------------
 # Role-Specific Tables
 # ----------------------------------
@@ -72,7 +73,9 @@ class Room(db.Model):
     capacity = db.Column(db.Integer, nullable=False)
 
     # Relationship
-    schedules = db.relationship('Schedule', backref='room', lazy=True)
+    #schedules = db.relationship('Schedule', backref='room', lazy=True)
+    schedules = db.relationship('Schedule', back_populates='room', lazy=True)
+
 
     def __repr__(self):
         return f"<Room {self.id} - {self.name} ({self.capacity} seats)>"
@@ -87,7 +90,8 @@ class Program(db.Model):
 
     # Relationships
     modules = db.relationship('Module', backref='program', lazy=True)
-    schedules = db.relationship('Schedule', backref='program', lazy=True)
+    schedules = db.relationship('Schedule', back_populates='program', lazy=True)
+    #schedules = db.relationship('Schedule', backref='program', lazy=True)
 
 class SpecializePath(db.Model):
     __tablename__ = 'specializePath'
@@ -105,7 +109,8 @@ class Module(db.Model):
     semester = db.Column(db.Integer, nullable=False)
 
     # Relationship
-    schedules = db.relationship('Schedule', backref='module', lazy=True)
+    schedules = db.relationship('Schedule', back_populates='module', lazy=True)
+    #schedules = db.relationship('Schedule', backref='module', lazy=True)
 
 # ----------------------------------
 # Scheduling & Rescheduling
@@ -126,11 +131,36 @@ class Schedule(db.Model):
     lecturer_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     program_id = db.Column(db.Integer, db.ForeignKey('program.id'), nullable=False)
     module_id = db.Column(db.Integer, db.ForeignKey('module.id'), nullable=False)
+    
 
     # Relationships
     reschedules = db.relationship('Reschedule', backref='schedule', lazy=True)
     attendances = db.relationship('Attendance', backref='schedule', cascade="all, delete-orphan", lazy=True)
     notifications = db.relationship('NotificationLog', backref='schedule', lazy=True)
+    #lecturer = db.relationship('User', backref='lecturer_schedules')  # ✅ ADD this
+    lecturer = db.relationship('User', back_populates='schedules')
+    #room = db.relationship('Room', backref='schedules')
+    room = db.relationship('Room', back_populates='schedules')
+    #program = db.relationship('Program', backref='schedules')
+    program = db.relationship('Program', back_populates='schedules')
+    module = db.relationship('Module', back_populates='schedules')
+    # module = db.relationship('Module', backref='schedules')
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "date": self.date.strftime('%Y-%m-%d'),
+            "start_time": self.start_time.strftime('%H:%M'),
+            "end_time": self.end_time.strftime('%H:%M'),
+            "subject": self.subject,
+            "lecturer": f"{self.lecturer.fName} {self.lecturer.lName}" if self.lecturer else "Unknown",
+            "room": self.room.name if self.room else "Unknown",
+            "program": self.program.name if self.program else "Unknown",
+            "status": self.status
+    }
+
+
+
+
 
 class Reschedule(db.Model):
     __tablename__ = 'reschedule'
