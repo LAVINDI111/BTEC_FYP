@@ -39,12 +39,24 @@
             <h5 class="mb-3">Scheduled Classes</h5>
             {% if schedules %}
             <table class="table table-bordered table-hover">
-                <thead class="table-light">
+                <!--<thead class="table-light">
                     <tr>
                         <th>Date</th>
                         <th>Time</th>
                         <th>Subject</th>
                         <th>Room</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>-->
+                <thead class="table-light">
+                    <tr>
+                        <th>Date</th>
+                        <th>Time</th>
+                        <th>Subject</th>
+                        <th>Lecturer</th>
+                        <th>Room</th>
+                        <th>Program</th>
                         <th>Status</th>
                         <th>Actions</th>
                     </tr>
@@ -54,12 +66,22 @@
                     <tr>
                         <td>{{ schedule.date.strftime('%d/%m/%Y') }}</td>
                         <td>{{ schedule.start_time.strftime('%H:%M') }} - {{ schedule.end_time.strftime('%H:%M') }}</td>
-                        <td>{{ schedule.module.name }}</td>
-                        <td>{{ schedule.room.name }}</td>
+                        <td>{{ schedule.subject }}</td>
+                        <td>{{ schedule.lecturer_id.fullName }}</td>
+                        <td>{{ schedule.room_id.name }}</td>
+                        <td>{{ schedule.program_id.name }}</td>
                         <td><span class="badge bg-secondary">{{ schedule.status }}</span></td>
                         <td>
                             {% if current_user.role in ['admin', 'lecturer'] %}
-                            <button class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#rescheduleModal">
+                            <!-- <button class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#rescheduleModal">
+                                <i class="fas fa-sync-alt"></i> Reschedule
+                            </button>-->
+                           <button class="btn btn-sm btn-warning"
+                                onclick="handleRescheduleClick(this)"
+                                data-id="{{ schedule.id }}"
+                                data-date="{{ schedule.date.strftime('%Y-%m-%d') }}"
+                                data-start-time="{{ schedule.start_time.strftime('%H:%M') }}"
+                                data-end-time="{{ schedule.end_time.strftime('%H:%M') }}">
                                 <i class="fas fa-sync-alt"></i> Reschedule
                             </button>
                             {% else %}
@@ -99,7 +121,7 @@
     </div>
 </div>
 
-<!-- Reschedule Placeholder Modal -->
+<!-- Reschedule Placeholder Modal 
 <div class="modal fade" id="rescheduleModal" tabindex="-1" aria-labelledby="rescheduleModalLabel" aria-hidden="true">
   <div class="modal-dialog">
     <div class="modal-content">
@@ -115,7 +137,40 @@
       </div>
     </div>
   </div>
+</div>-->
+
+<!-- Reschedule Modal -->
+<div class="modal fade" id="rescheduleModal" tabindex="-1" aria-labelledby="rescheduleModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <form id="rescheduleForm">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Reschedule Class</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" id="reschedule_id" name="schedule_id">
+          <div class="mb-3">
+            <label>Date</label>
+            <input type="date" class="form-control" name="date" required>
+          </div>
+          <div class="mb-3">
+            <label>Start Time</label>
+            <input type="time" class="form-control" name="start_time" required>
+          </div>
+          <div class="mb-3">
+            <label>End Time</label>
+            <input type="time" class="form-control" name="end_time" required>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="submit" class="btn btn-success">Save Changes</button>
+        </div>
+      </div>
+    </form>
+  </div>
 </div>
+
 {% endblock %}
 
 {% block extra_js %}
@@ -142,10 +197,18 @@ function showScheduleTable() {
                     <td>${formatDate(schedule.date)}</td>
                     <td>${schedule.start_time} - ${schedule.end_time}</td>
                     <td>${schedule.subject}</td>
+                    <td>${schedule.lecturer || 'N/A'}</td>
+                    <td>${schedule.room || 'N/A'}</td>
+                    <td>${schedule.program || 'N/A'}</td>
                     <td>-</td>
                     <td><span class="badge bg-secondary">${schedule.status}</span></td>
                     <td>
-                        <button class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#rescheduleModal">
+                        <button class="btn btn-sm btn-warning" 
+                            onclick="handleRescheduleClick(this)"
+                            data-id="${schedule.id}"
+                            data-date="${schedule.date}"
+                            data-start-time="${schedule.start_time}"
+                            data-end-time="${schedule.end_time}">
                             <i class="fas fa-sync-alt"></i> Reschedule
                         </button>
                     </td>
@@ -210,8 +273,8 @@ function saveSchedule() {
             newRow.innerHTML = `
                 <td>${result.schedule.date}</td>
                 <td>${result.schedule.start_time} - ${result.schedule.end_time}</td>
-                <td>${result.schedule.module_name}</td>
-                <td>${result.schedule.room_name}</td>
+                <td>${result.schedule.subject}</td>
+                <td>${result.schedule.room_id}</td>
                 <td><span class="badge bg-secondary">${result.schedule.status}</span></td>
                 <td>
                     <button class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#rescheduleModal">
@@ -254,5 +317,64 @@ function showToast(message, type = "info") {
 $(document).ready(function () {
     showScheduleTable();
 });
+
+//avaScript Function to Handle Button Click
+function handleRescheduleClick(button) {
+    const id = button.getAttribute('data-id');
+    const date = button.getAttribute('data-date');
+    const start = button.getAttribute('data-start-time');
+    const end = button.getAttribute('data-end-time');
+
+    document.getElementById("reschedule_id").value = id;
+    document.querySelector("#rescheduleForm [name='date']").value = date;
+    document.querySelector("#rescheduleForm [name='start_time']").value = start;
+    document.querySelector("#rescheduleForm [name='end_time']").value = end;
+
+    let modal = new bootstrap.Modal(document.getElementById("rescheduleModal"));
+    modal.show();
+}
+
+//JavaScript Functionality for reschedulling
+function openRescheduleModal(scheduleId, date, start, end) {
+    document.getElementById("reschedule_id").value = scheduleId;
+    document.querySelector("#rescheduleForm [name='date']").value = date;
+    document.querySelector("#rescheduleForm [name='start_time']").value = start;
+    document.querySelector("#rescheduleForm [name='end_time']").value = end;
+
+    let modal = new bootstrap.Modal(document.getElementById("rescheduleModal"));
+    modal.show();
+}
+
+document.getElementById("rescheduleForm").addEventListener("submit", function (e) {
+    e.preventDefault();
+    const form = e.target;
+    const data = {
+        schedule_id: form.schedule_id.value,
+        date: form.date.value,
+        start_time: form.start_time.value,
+        end_time: form.end_time.value
+    };
+
+    fetch("/api/reschedule", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data)
+    })
+    .then(res => res.json())
+    .then(result => {
+        if (result.success) {
+            showToast("Schedule updated!", "success");
+            const modal = bootstrap.Modal.getInstance(document.getElementById("rescheduleModal"));
+            modal.hide();
+            form.reset();
+            showScheduleTable(); // refresh schedule
+        } else {
+            showToast(result.message, "danger");
+        }
+    });
+});
+// end of that function
+
+
 </script>
 {% endblock %}

@@ -6,12 +6,13 @@ Main Flask Application File
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import datetime
+from datetime import datetime,timedelta
 from flask_migrate import Migrate
 from extensions import db, login_manager
 from models import *
 import os
 from config import config
+from sqlalchemy.orm import joinedload
 
 # Create the Flask app
 app = Flask(__name__)
@@ -29,7 +30,9 @@ migrate = Migrate(app, db)
 # User loader for Flask-Login
 @login_manager.user_loader
 def load_user(user_id):
-    return User.query.get(int(user_id))
+    #return User.query.get(int(user_id)) ##21
+    return db.session.get(User, int(user_id))
+
 
 @app.route('/')
 def home():
@@ -209,17 +212,40 @@ def api_schedules():
                 'status': schedule.status
             }
         })
-    ########################################
+    ######################################## 21
+    #else:
+        #schedules = Schedule.query.all()
+        #return jsonify([{
+            #'id': s.id,
+            #'date': s.date.strftime('%Y-%m-%d'),
+            #'start_time': s.start_time.strftime('%H:%M'),
+            #'end_time': s.end_time.strftime('%H:%M'),
+            #'subject': s.subject,
+            #'status': s.status
+        #} for s in schedules])
     else:
-        schedules = Schedule.query.all()
-        return jsonify([{
+        schedules = Schedule.query.options(
+            joinedload(Schedule.lecturer),
+            joinedload(Schedule.room),
+            joinedload(Schedule.program),
+            joinedload(Schedule.module)
+    ).all()
+
+    result = []
+    for s in schedules:
+        result.append({
             'id': s.id,
-            'date': s.date.strftime('%Y-%m-%d'),
+            'date': s.date.strftime('%a, %b %d, %Y'),
             'start_time': s.start_time.strftime('%H:%M'),
             'end_time': s.end_time.strftime('%H:%M'),
-            'subject': s.subject,
-            'status': s.status
-        } for s in schedules])
+            'subject': s.module.name if s.module else '(no module)',
+            'lecturer': f"{s.lecturer.fName} {s.lecturer.lName}" if s.lecturer else 'Unknown',
+            'room': s.room.name if s.room else 'Unknown',
+            'program': s.program.name if s.program else 'Unknown',
+            'status': s.status if s.status else 'Scheduled'
+        })
+    return jsonify(result)
+    
 
 @app.route('/attendance')
 @login_required
@@ -238,6 +264,144 @@ def audit_log():
         return redirect(url_for('dashboard'))
     logs = AuditLog.query.order_by(AuditLog.timestamp.desc()).all()
     return render_template('audit_log.html', audit_logs=logs)
+
+# Adding route to get a specific schedule
+
+@app.route('/api/schedule/<int:schedule_id>', methods=['GET'])
+def get_schedule(schedule_id):
+    schedule = db.session.get(Schedule, schedule_id)
+    if not schedule:
+        return jsonify({'error': 'Schedule not found'}), 404
+    return jsonify({
+        'id': schedule.id,
+        'date': schedule.date.strftime('%Y-%m-%d'),
+        'start_time': schedule.start_time.strftime('%H:%M'),
+        'end_time': schedule.end_time.strftime('%H:%M'),
+        'subject': schedule.subject,
+        'notes': getattr(schedule, 'notes', '')  # Safely get notes or return empty string
+    })
+
+
+# route for reschedule
+
+@app.route('/api/reschedule', methods=['POST'])
+#@app.route('/reschedule', methods=['POST'])
+@login_required
+def reschedule_schedule():
+    data = request.get_json()
+    schedule_id = int(data['schedule_id'])
+    new_date = datetime.strptime(data['date'], '%Y-%m-%d').date()
+    new_start = datetime.strptime(data['start_time'], '%H:%M').time()
+    new_end = datetime.strptime(data['end_time'], '%H:%M').time()
+    # new raw after adding reschedule
+    reason = data.get('reason', 'No reason provided')
+
+
+    schedule = Schedule.query.get(schedule_id)
+    if not schedule:
+        return jsonify({"success": False, "message": "Schedule not found."})
+        #return jsonify({'error': 'Schedule not found'}), 404
+
+    # Check for conflicts (same room, date, overlapping time)
+    conflict = Schedule.query.filter(
+        Schedule.room_id == schedule.room_id,
+        Schedule.date == new_date,
+        Schedule.id != schedule_id,
+        Schedule.start_time < new_end,
+        Schedule.end_time > new_start
+    ).first()
+
+    if conflict:
+        return jsonify({
+            "success": False,
+            "message": f"Conflict: Room already booked from {conflict.start_time.strftime('%H:%M')} to {conflict.end_time.strftime('%H:%M')}"
+        })
+    
+    # # Save reschedule record ##
+    reschedule = Reschedule(
+        schedule_id=schedule.id,
+        old_date=schedule.date,
+        old_start_time=schedule.start_time,
+        old_end_time=schedule.end_time,
+        new_date=new_date,
+        new_start_time=new_start,
+        new_end_time=new_end,
+        reason=reason,
+        updated_by=current_user.id
+    )
+    db.session.add(reschedule)
+
+    # Update Schedule
+    schedule.date = new_date
+    schedule.start_time = new_start
+    schedule.end_time = new_end
+    db.session.commit()
+
+    # Log the change
+    log = AuditLog(
+        user_id=current_user.id,
+        action='Rescheduled Class',
+        target_type='Schedule',
+        target_id=schedule.id
+    )
+    db.session.add(log)
+    db.session.commit()
+
+    return jsonify({
+    "success": True,
+    "message": "Schedule updated successfully."
+    })
+
+    #return jsonify({'message': 'Rescheduled successfully'})
+
+# end of reschedule route 
+
+# 21_ return data lecturer/room/modules/program
+@app.route('/api/lecturers', methods=['GET'])
+def get_lecturers():
+    lecturers = Lecturer.query.all()
+    return jsonify([
+        {
+            'id': lec.id,
+            'name': lec.fullName
+        } for lec in lecturers
+    ])
+
+# --- GET All Rooms ---
+@app.route('/api/rooms', methods=['GET'])
+def get_rooms():
+    rooms = Room.query.all()
+    return jsonify([
+        {
+            'id': room.id,
+            'name': room.name
+        } for room in rooms
+    ])
+
+# --- GET All Programs ---
+@app.route('/api/programs', methods=['GET'])
+def get_programs():
+    programs = Program.query.all()
+    return jsonify([
+        {
+            'id': prog.id,
+            'name': prog.name
+        } for prog in programs
+    ])
+
+# --- GET All Modules ---
+@app.route('/api/modules', methods=['GET'])
+def get_modules():
+    modules = Module.query.all()
+    return jsonify([
+        {
+            'id': mod.id,
+            'name': mod.name
+        } for mod in modules
+    ])
+
+# end of return thode data
+
 
 @app.errorhandler(404)
 def not_found(error):
@@ -276,8 +440,10 @@ def init_db():
             db.session.commit()
             print("Default admin user created: admin/admin123")
 
+
+
 if __name__ == '__main__':
     init_db()
     print("ACNSMS Application Starting...")
     print("Access the application at: http://localhost:5000")
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=True, host='0.0.0.0', port=5000)  

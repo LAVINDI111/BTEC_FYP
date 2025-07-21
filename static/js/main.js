@@ -179,7 +179,7 @@ function showScheduleModal() {
 
 /**
  * Load data for dropdown menus
- */
+ 
 function loadDropdownData() {
     // This would typically make AJAX calls to get data from server
     // For now, we'll use placeholder data
@@ -252,7 +252,55 @@ function loadDropdownData() {
     modules.forEach(module => {
         moduleSelect.append(`<option value="${module.id}">${module.name}</option>`);
     });
+}*/
+
+//Load data for dropdown menus - new version _21 st
+function loadDropdownData() {
+    // Lecturers
+    $.get('/api/lecturers', function (lecturers) {
+        const lecturerSelect = $('#lecturer');
+        lecturerSelect.empty();
+        lecturers.forEach(lecturer => {
+            lecturerSelect.append(`<option value="${lecturer.id}">${lecturer.name}</option>`);
+        });
+    });
+
+    // Rooms
+    $.get('/api/rooms', function (rooms) {
+        const roomSelect = $('#room');
+        roomSelect.empty();
+        rooms.forEach(room => {
+            roomSelect.append(`<option value="${room.id}">${room.name}</option>`);
+        });
+    });
+
+    // Programs
+    $.get('/api/programs', function (programs) {
+        const programSelect = $('#program');
+        programSelect.empty();
+        programs.forEach(program => {
+            programSelect.append(`<option value="${program.id}">${program.name}</option>`);
+        });
+    });
+
+    // Modules
+    $.get('/api/modules', function (modules) {
+        const moduleSelect = $('#module');
+        moduleSelect.empty();
+        modules.forEach(module => {
+            moduleSelect.append(`<option value="${module.id}">${module.name}</option>`);
+        });
+    });
 }
+
+// ✅ Call the function once the page has fully loaded
+$(document).ready(function () {
+    loadDropdownData();
+});
+
+// end of loadDropdownData new function
+ 
+
 
 /**
  * Save schedule to database and Google Calendar
@@ -339,61 +387,43 @@ function showScheduleTable() {
  * Load schedule data for table
  */
 function loadScheduleData() {
-    // This would typically make an AJAX call
-    // For now, we'll use placeholder data
-    
-    const sampleSchedules = [
-        {
-            id: 1,
-            date: '2025-01-15',
-            startTime: '09:00',
-            endTime: '11:00',
-            subject: 'Programming Fundamentals',
-            lecturer: 'Dr. Sakunika Perera',
-            room: 'Com Lab 1',
-            program: 'BTEC HND Computing',
-            status: 'Scheduled'
+    $.ajax({
+        url: '/api/schedules',  // Your Flask API endpoint
+        method: 'GET',
+        dataType: 'json',
+        success: function(schedules) {
+            const tbody = $('#scheduleTableBody');
+            tbody.empty(); // Clear old rows
+
+            schedules.forEach(schedule => {
+                const statusClass = getStatusClass(schedule.status);
+                const actionButtons = getCurrentUserRole() === 'student' ?
+                    '<span class="text-muted">View Only</span>' :
+                    `<button class="btn btn-sm btn-warning me-1" onclick="rescheduleClass(${schedule.id})">
+                        <i class="fas fa-edit"></i> Reschedule
+                    </button>`;
+
+                const row = `
+                    <tr>
+                        <td>${formatDate(schedule.date)}</td>
+                        <td>${schedule.start_time} - ${schedule.end_time}</td>
+                        <td>${schedule.subject}</td>
+                        <td>${schedule.lecturer_name}</td>
+                        <td>${schedule.room_name}</td>
+                        <td>${schedule.program_name}</td>
+                        <td><span class="status-badge ${statusClass}">${schedule.status}</span></td>
+                        <td>${actionButtons}</td>
+                    </tr>
+                `;
+                tbody.append(row);
+            });
         },
-        {
-            id: 2,
-            date: '2025-01-16',
-            startTime: '14:00',
-            endTime: '16:00',
-            subject: 'Database Systems',
-            lecturer: 'Prof. John Smith',
-            room: 'LR2',
-            program: 'CAIT Program',
-            status: 'Scheduled'
+        error: function(xhr, status, error) {
+            showNotification('Error loading schedule data: ' + error, 'error');
         }
-    ];
-    
-    const tbody = $('#scheduleTableBody');
-    tbody.empty();
-    
-    sampleSchedules.forEach(schedule => {
-        const statusClass = getStatusClass(schedule.status);
-        const actionButtons = getCurrentUserRole() === 'student' ? 
-            '<span class="text-muted">View Only</span>' :
-            `<button class="btn btn-sm btn-warning me-1" onclick="rescheduleClass(${schedule.id})">
-                <i class="fas fa-edit"></i> Reschedule
-             </button>`;
-        
-        const row = `
-            <tr>
-                <td>${formatDate(schedule.date)}</td>
-                <td>${schedule.startTime} - ${schedule.endTime}</td>
-                <td>${schedule.subject}</td>
-                <td>${schedule.lecturer}</td>
-                <td>${schedule.room}</td>
-                <td>${schedule.program}</td>
-                <td><span class="status-badge ${statusClass}">${schedule.status}</span></td>
-                <td>${actionButtons}</td>
-            </tr>
-        `;
-        
-        tbody.append(row);
     });
 }
+
 
 /**
  * Show calendar view
@@ -471,10 +501,80 @@ function syncWithGoogleCalendar() {
 
 /**
  * Reschedule a class
- */
+ 
 function rescheduleClass(scheduleId) {
     // This would show a reschedule modal
     showNotification('Reschedule functionality will be implemented', 'info');
+}
+ */
+
+function rescheduleClass(scheduleId) {
+    $.get(`/api/schedule/${scheduleId}`, function(schedule) {
+        const modalHtml = `
+        <div class="modal fade" id="rescheduleModal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Reschedule Class</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="rescheduleForm">
+                            <input type="hidden" name="schedule_id" value="${schedule.id}">
+                            <div class="mb-3">
+                                <label>Date</label>
+                                <input type="date" name="date" class="form-control" value="${schedule.date}" required>
+                            </div>
+                            <div class="mb-3">
+                                <label>Start Time</label>
+                                <input type="time" name="start_time" class="form-control" value="${schedule.start_time}" required>
+                            </div>
+                            <div class="mb-3">
+                                <label>End Time</label>
+                                <input type="time" name="end_time" class="form-control" value="${schedule.end_time}" required>
+                            </div>
+                            <div class="mb-3">
+                                <label>Reason</label>
+                                <textarea name="reason" class="form-control" required></textarea>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button class="btn btn-primary" onclick="submitReschedule()">Reschedule</button>
+                    </div>
+                </div>
+            </div>
+        </div>`;
+        $('body').append(modalHtml);
+        $('#rescheduleModal').modal('show');
+    });
+}
+
+//submitReschedule() to send the POST request
+
+function submitReschedule() {
+    const formData = new FormData(document.getElementById('rescheduleForm'));
+    const data = Object.fromEntries(formData.entries());
+
+    $.ajax({
+        url: '/api/reschedule',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify(data),
+        success: function(response) {
+            if (response.success) {
+                showNotification('Schedule rescheduled successfully!', 'success');
+                $('#rescheduleModal').modal('hide');
+                refreshScheduleTable();
+            } else {
+                showNotification(response.message, 'warning');
+            }
+        },
+        error: function(err) {
+            showNotification('Error occurred during rescheduling', 'error');
+        }
+    });
 }
 
 /**
