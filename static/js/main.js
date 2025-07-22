@@ -408,9 +408,9 @@ function loadScheduleData() {
                         <td>${formatDate(schedule.date)}</td>
                         <td>${schedule.start_time} - ${schedule.end_time}</td>
                         <td>${schedule.subject}</td>
-                        <td>${schedule.lecturer_name}</td>
-                        <td>${schedule.room_name}</td>
-                        <td>${schedule.program_name}</td>
+                        <td>${schedule.lecturer}</td>
+                        <td>${schedule.room}</td>
+                        <td>${schedule.program}</td>
                         <td><span class="status-badge ${statusClass}">${schedule.status}</span></td>
                         <td>${actionButtons}</td>
                     </tr>

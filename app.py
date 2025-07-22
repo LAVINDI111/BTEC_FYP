@@ -178,7 +178,7 @@ def api_schedules():
             subject=data.get('subject', '(auto)'),
             status='Scheduled',
             room_id=int(data['room_id']),
-            lecturer_id=current_user.id,
+            lecturer_id=int(data['lecturer']),
             program_id=int(data['program_id']),
             module_id=int(data['module_id'])
         )
@@ -359,12 +359,12 @@ def reschedule_schedule():
 # 21_ return data lecturer/room/modules/program
 @app.route('/api/lecturers', methods=['GET'])
 def get_lecturers():
-    lecturers = Lecturer.query.all()
+    lecturers = User.query.filter_by(role='lecturer').all()
     return jsonify([
         {
-            'id': lec.id,
-            'name': lec.fullName
-        } for lec in lecturers
+            'id': user.id, 
+            'name': f"{user.fName} {user.lName}"
+        } for user in lecturers
     ])
 
 # --- GET All Rooms ---

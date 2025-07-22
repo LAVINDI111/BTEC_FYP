@@ -84,7 +84,7 @@ class Program(db.Model):
     __tablename__ = 'program'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
-    type = db.Column(db.Enum('Degree', 'HND', 'Certificate', ), nullable=False)
+    type = db.Column(db.Enum('Degree', 'HND', 'Certificate', 'Foundation'), nullable=False)
     mode = db.Column(db.Enum('weekday', 'weekend'), nullable=False)
     department = db.Column(db.String(100), nullable=False)
 
