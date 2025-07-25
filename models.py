@@ -7,6 +7,17 @@ from datetime import datetime
 from flask_login import UserMixin
 from extensions import db  # Import shared db instance
 
+# Enum definitions
+user_role_enum = db.Enum('student', 'lecturer', 'admin', name='user_role')
+program_type_enum = db.Enum('Degree', 'HND', 'Certificate', name='program_type_enum')
+program_mode_enum = db.Enum('weekday', 'weekend', name='program_mode_enum')
+schedule_status_enum = db.Enum('Scheduled', 'Completed', 'Cancelled', name='schedule_status_enum')
+template_type_enum = db.Enum('schedule', 'reschedule', 'reminder', name='template_type_enum')
+notification_channel_enum = db.Enum('sms', 'email', 'both', name='notification_channel_enum')
+notification_channel_simple_enum = db.Enum('sms', 'email', name='notification_channel_simple_enum')
+notification_status_enum = db.Enum('sent', 'failed', 'pending', name='notification_status_enum')
+attendance_status_enum = db.Enum('Present', 'Absent', 'Excused', name='attendance_status_enum')
+
 # ----------------------------------
 # Main User Table
 # ----------------------------------
@@ -18,7 +29,7 @@ class User(UserMixin, db.Model):
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
     phone = db.Column(db.String(20), nullable=False)
-    role = db.Column(db.Enum('student', 'lecturer', 'admin'), nullable=False)
+    role = db.Column(user_role_enum, nullable=False)
     department = db.Column(db.String(100), nullable=False)
     fName = db.Column(db.String(50), nullable=False)
     lName = db.Column(db.String(50), nullable=False)
@@ -84,8 +95,8 @@ class Program(db.Model):
     __tablename__ = 'program'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
-    type = db.Column(db.Enum('Degree', 'HND', 'Certificate', ), nullable=False)
-    mode = db.Column(db.Enum('weekday', 'weekend'), nullable=False)
+    type = db.Column(program_type_enum, nullable=False)
+    mode = db.Column(program_mode_enum, nullable=False)
     department = db.Column(db.String(100), nullable=False)
 
     # Relationships
@@ -122,7 +133,7 @@ class Schedule(db.Model):
     start_time = db.Column(db.Time, nullable=False)
     end_time = db.Column(db.Time, nullable=False)
     subject = db.Column(db.String(100), nullable=False)
-    status = db.Column(db.Enum('Scheduled', 'Completed', 'Cancelled'), nullable=False, default='Scheduled')
+    status = db.Column(schedule_status_enum, nullable=False, default='Scheduled')
     google_calendar_link = db.Column(db.String(255))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -192,8 +203,8 @@ class MessageTemplates(db.Model):
     subject = db.Column(db.String(200), nullable=False)
     body_text = db.Column(db.Text, nullable=False)
     body_html = db.Column(db.Text, nullable=False)
-    template_type = db.Column(db.Enum('schedule', 'reschedule', 'reminder'), nullable=False)
-    channel = db.Column(db.Enum('sms', 'email', 'both'), nullable=False)
+    template_type = db.Column(template_type_enum, nullable=False)
+    channel = db.Column(notification_channel_enum, nullable=False)
     is_active = db.Column(db.Boolean, default=True, nullable=False)
 
     # Relationship
@@ -206,9 +217,9 @@ class NotificationLog(db.Model):
     schedule_id = db.Column(db.Integer, db.ForeignKey('schedule.id'))
     reschedule_id = db.Column(db.Integer, db.ForeignKey('reschedule.id'))
     template_id = db.Column(db.Integer, db.ForeignKey('message_templates.id'), nullable=False)
-    channel = db.Column(db.Enum('sms', 'email'), nullable=False)
+    channel = db.Column(notification_channel_simple_enum, nullable=False)
     sent_at = db.Column(db.DateTime, default=datetime.utcnow)
-    status = db.Column(db.Enum('sent', 'failed', 'pending'), nullable=False)
+    status = db.Column(notification_status_enum, nullable=False)
 
 # ----------------------------------
 # Attendance & Auditing
@@ -223,7 +234,7 @@ class Attendance(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     student_id = db.Column(db.Integer, db.ForeignKey('student.id'), nullable=False)
     schedule_id = db.Column(db.Integer, db.ForeignKey('schedule.id'), nullable=False)
-    status = db.Column(db.Enum('Present', 'Absent', 'Excused'), nullable=False)
+    status = db.Column(attendance_status_enum, nullable=False)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
 
 
