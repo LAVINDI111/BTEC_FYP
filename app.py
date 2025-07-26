@@ -13,6 +13,7 @@ from models import *
 import os
 from config import config
 from sqlalchemy.orm import joinedload
+from app import User
 
 # Create the Flask app
 app = Flask(__name__)
@@ -178,7 +179,7 @@ def api_schedules():
             subject=data.get('subject', '(auto)'),
             status='Scheduled',
             room_id=int(data['room_id']),
-            lecturer_id=current_user.id,
+            lecturer_id=int(data.get('lecturer')),
             program_id=int(data['program_id']),
             module_id=int(data['module_id'])
         )
@@ -225,7 +226,6 @@ def api_schedules():
         #} for s in schedules])
     else:
         schedules = Schedule.query.options(
-            joinedload(Schedule.lecturer),
             joinedload(Schedule.room),
             joinedload(Schedule.program),
             joinedload(Schedule.module)
@@ -233,13 +233,14 @@ def api_schedules():
 
     result = []
     for s in schedules:
+        lecturer = Lecturer.query.get(s.lecturer_id) if s.lecturer_id else None
         result.append({
             'id': s.id,
             'date': s.date.strftime('%a, %b %d, %Y'),
             'start_time': s.start_time.strftime('%H:%M'),
             'end_time': s.end_time.strftime('%H:%M'),
             'subject': s.module.name if s.module else '(no module)',
-            'lecturer': f"{s.lecturer.fName} {s.lecturer.lName}" if s.lecturer else 'Unknown',
+            'lecturer': f"{lecturer.fullName}" if lecturer else 'Unknown',
             'room': s.room.name if s.room else 'Unknown',
             'program': s.program.name if s.program else 'Unknown',
             'status': s.status if s.status else 'Scheduled'
