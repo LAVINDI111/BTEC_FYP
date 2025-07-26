@@ -13,6 +13,7 @@ from models import *
 import os
 from config import config
 from sqlalchemy.orm import joinedload
+from app import User
 
 # Create the Flask app
 app = Flask(__name__)
@@ -178,7 +179,7 @@ def api_schedules():
             subject=data.get('subject', '(auto)'),
             status='Scheduled',
             room_id=int(data['room_id']),
-            lecturer_id=current_user.id,
+            lecturer_id=int(data.get('lecturer')),
             program_id=int(data['program_id']),
             module_id=int(data['module_id'])
         )
@@ -225,7 +226,6 @@ def api_schedules():
         #} for s in schedules])
     else:
         schedules = Schedule.query.options(
-            joinedload(Schedule.lecturer),
             joinedload(Schedule.room),
             joinedload(Schedule.program),
             joinedload(Schedule.module)
@@ -233,13 +233,14 @@ def api_schedules():
 
     result = []
     for s in schedules:
+        lecturer = Lecturer.query.get(s.lecturer_id) if s.lecturer_id else None
         result.append({
             'id': s.id,
             'date': s.date.strftime('%a, %b %d, %Y'),
             'start_time': s.start_time.strftime('%H:%M'),
             'end_time': s.end_time.strftime('%H:%M'),
             'subject': s.module.name if s.module else '(no module)',
-            'lecturer': f"{s.lecturer.fName} {s.lecturer.lName}" if s.lecturer else 'Unknown',
+            'lecturer': f"{lecturer.fullName}" if lecturer else 'Unknown',
             'room': s.room.name if s.room else 'Unknown',
             'program': s.program.name if s.program else 'Unknown',
             'status': s.status if s.status else 'Scheduled'
@@ -356,6 +357,97 @@ def reschedule_schedule():
 
 # end of reschedule route 
 
+@app.route('/api/reschedule/suggestions', methods=['POST'])
+@login_required
+def get_reschedule_suggestions():
+    data = request.get_json()
+    schedule_id = int(data['schedule_id'])
+    preferred_date = datetime.strptime(data['date'], '%Y-%m-%d').date()
+    
+    # Get the original schedule
+    schedule = Schedule.query.get(schedule_id)
+    if not schedule:
+        return jsonify({"success": False, "message": "Schedule not found."})
+    
+    # Get lecturer's busy slots on the preferred date
+    lecturer_busy_slots = Schedule.query.filter(
+        Schedule.lecturer_id == schedule.lecturer_id,
+        Schedule.date == preferred_date,
+        Schedule.id != schedule_id  # Exclude the current schedule
+    ).all()
+    
+    # Get all rooms
+    rooms = Room.query.all()
+    
+    # Generate time suggestions (e.g., every 30 minutes from 8 AM to 6 PM)
+    suggestions = []
+    start_hour = 8
+    end_hour = 18
+    interval = 30  # minutes
+    
+    # Create time slots
+    time_slots = []
+    current_time = datetime.strptime(f"{start_hour:02d}:00", "%H:%M").time()
+    
+    while current_time.hour < end_hour:
+        slot_start = current_time
+        slot_end = (
+            datetime.combine(datetime.today(), slot_start) + 
+            timedelta(minutes=interval)
+        ).time()
+        
+        if slot_end.hour >= end_hour:
+            break
+            
+        time_slots.append((slot_start, slot_end))
+        current_time = slot_end
+    
+    # Check each time slot for availability
+    for start_time, end_time in time_slots:
+        # Check if lecturer is available
+        lecturer_available = True
+        for busy_slot in lecturer_busy_slots:
+            if (start_time < busy_slot.end_time and end_time > busy_slot.start_time):
+                lecturer_available = False
+                break
+        
+        if lecturer_available:
+            # Find available rooms for this time slot
+            available_rooms = []
+            for room in rooms:
+                # Check if room is available
+                room_conflict = Schedule.query.filter(
+                    Schedule.room_id == room.id,
+                    Schedule.date == preferred_date,
+                    Schedule.start_time < end_time,
+                    Schedule.end_time > start_time
+                ).first()
+                
+                if not room_conflict:
+                    available_rooms.append({
+                        'id': room.id,
+                        'name': room.name,
+                        'capacity': room.capacity
+                    })
+            
+            # Sort rooms by capacity (closest to original room's capacity)
+            original_room = Room.query.get(schedule.room_id)
+            if original_room:
+                available_rooms.sort(key=lambda x: abs(x['capacity'] - original_room.capacity))
+            
+            if available_rooms:
+                suggestions.append({
+                    'date': preferred_date.strftime('%Y-%m-%d'),
+                    'start_time': start_time.strftime('%H:%M'),
+                    'end_time': end_time.strftime('%H:%M'),
+                    'rooms': available_rooms[:3]  # Limit to top 3 rooms
+                })
+    
+    return jsonify({
+        "success": True,
+        "suggestions": suggestions[:5]  # Limit to top 5 time suggestions
+    })
+
 # 21_ return data lecturer/room/modules/program
 @app.route('/api/lecturers', methods=['GET'])
 def get_lecturers():
@@ -374,7 +466,8 @@ def get_rooms():
     return jsonify([
         {
             'id': room.id,
-            'name': room.name
+            'name': room.name,
+            'capacity': room.capacity
         } for room in rooms
     ])
 
