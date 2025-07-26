@@ -395,6 +395,13 @@ function loadScheduleData() {
             const tbody = $('#scheduleTableBody');
             tbody.empty(); // Clear old rows
 
+            // Sort schedules by date (oldest to newest)
+            schedules.sort((a, b) => {
+                const dateA = new Date(a.date);
+                const dateB = new Date(b.date);
+                return dateA - dateB;
+            });
+
             schedules.forEach(schedule => {
                 const statusClass = getStatusClass(schedule.status);
                 const actionButtons = getCurrentUserRole() === 'student' ?
@@ -408,9 +415,9 @@ function loadScheduleData() {
                         <td>${formatDate(schedule.date)}</td>
                         <td>${schedule.start_time} - ${schedule.end_time}</td>
                         <td>${schedule.subject}</td>
-                        <td>${schedule.lecturer_name}</td>
-                        <td>${schedule.room_name}</td>
-                        <td>${schedule.program_name}</td>
+                        <td>${schedule.lecturer}</td>
+                        <td>${schedule.room}</td>
+                        <td>${schedule.program}</td>
                         <td><span class="status-badge ${statusClass}">${schedule.status}</span></td>
                         <td>${actionButtons}</td>
                     </tr>
