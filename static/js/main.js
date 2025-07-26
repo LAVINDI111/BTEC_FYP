@@ -395,6 +395,13 @@ function loadScheduleData() {
             const tbody = $('#scheduleTableBody');
             tbody.empty(); // Clear old rows
 
+            // Sort schedules by date (oldest to newest)
+            schedules.sort((a, b) => {
+                const dateA = new Date(a.date);
+                const dateB = new Date(b.date);
+                return dateA - dateB;
+            });
+
             schedules.forEach(schedule => {
                 const statusClass = getStatusClass(schedule.status);
                 const actionButtons = getCurrentUserRole() === 'student' ?
@@ -408,9 +415,9 @@ function loadScheduleData() {
                         <td>${formatDate(schedule.date)}</td>
                         <td>${schedule.start_time} - ${schedule.end_time}</td>
                         <td>${schedule.subject}</td>
-                        <td>${schedule.lecturer_name}</td>
-                        <td>${schedule.room_name}</td>
-                        <td>${schedule.program_name}</td>
+                        <td>${schedule.lecturer}</td>
+                        <td>${schedule.room}</td>
+                        <td>${schedule.program}</td>
                         <td><span class="status-badge ${statusClass}">${schedule.status}</span></td>
                         <td>${actionButtons}</td>
                     </tr>
@@ -512,7 +519,7 @@ function rescheduleClass(scheduleId) {
     $.get(`/api/schedule/${scheduleId}`, function(schedule) {
         const modalHtml = `
         <div class="modal fade" id="rescheduleModal" tabindex="-1">
-            <div class="modal-dialog">
+            <div class="modal-dialog modal-lg">
                 <div class="modal-content">
                     <div class="modal-header">
                         <h5 class="modal-title">Reschedule Class</h5>
@@ -521,21 +528,53 @@ function rescheduleClass(scheduleId) {
                     <div class="modal-body">
                         <form id="rescheduleForm">
                             <input type="hidden" name="schedule_id" value="${schedule.id}">
-                            <div class="mb-3">
-                                <label>Date</label>
-                                <input type="date" name="date" class="form-control" value="${schedule.date}" required>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label>Date</label>
+                                        <input type="date" name="date" id="rescheduleDate" class="form-control" value="${schedule.date}" required>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label>&nbsp;</label>
+                                        <button type="button" class="btn btn-info form-control" onclick="getSuggestions()">
+                                            <i class="fas fa-lightbulb me-1"></i>Get Suggestions
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label>Start Time</label>
+                                        <input type="time" name="start_time" id="startTime" class="form-control" value="${schedule.start_time}" required>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label>End Time</label>
+                                        <input type="time" name="end_time" id="endTime" class="form-control" value="${schedule.end_time}" required>
+                                    </div>
+                                </div>
                             </div>
                             <div class="mb-3">
-                                <label>Start Time</label>
-                                <input type="time" name="start_time" class="form-control" value="${schedule.start_time}" required>
-                            </div>
-                            <div class="mb-3">
-                                <label>End Time</label>
-                                <input type="time" name="end_time" class="form-control" value="${schedule.end_time}" required>
+                                <label>Room</label>
+                                <select name="room_id" id="roomId" class="form-control" required>
+                                    <option value="">Select a room...</option>
+                                </select>
                             </div>
                             <div class="mb-3">
                                 <label>Reason</label>
                                 <textarea name="reason" class="form-control" required></textarea>
+                            </div>
+                            
+                            <!-- Suggestions Section -->
+                            <div id="suggestionsSection" class="mt-4" style="display: none;">
+                                <h6><i class="fas fa-lightbulb me-2"></i>Suggested Times & Rooms:</h6>
+                                <div id="suggestionsList" class="border rounded p-3">
+                                    <!-- Suggestions will be loaded here -->
+                                </div>
                             </div>
                         </form>
                     </div>
@@ -548,6 +587,139 @@ function rescheduleClass(scheduleId) {
         </div>`;
         $('body').append(modalHtml);
         $('#rescheduleModal').modal('show');
+        
+        // Load rooms for the original schedule
+        loadRoomsForSchedule(schedule.room_id);
+    });
+}
+
+function loadRoomsForSchedule(selectedRoomId = null) {
+    $.get('/api/rooms', function(rooms) {
+        const roomSelect = $('#roomId');
+        roomSelect.empty();
+        roomSelect.append('<option value="">Select a room...</option>');
+        
+        rooms.forEach(room => {
+            const selected = selectedRoomId && room.id == selectedRoomId ? 'selected' : '';
+            roomSelect.append(`<option value="${room.id}" ${selected}>${room.name} (Capacity: ${room.capacity})</option>`);
+        });
+    });
+}
+
+function getSuggestions() {
+    const scheduleId = $('input[name="schedule_id"]').val();
+    const date = $('#rescheduleDate').val();
+    
+    if (!date) {
+        showNotification('Please select a date first', 'warning');
+        return;
+    }
+    
+    $.ajax({
+        url: '/api/reschedule/suggestions',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({
+            schedule_id: scheduleId,
+            date: date
+        }),
+        success: function(response) {
+            if (response.success && response.suggestions.length > 0) {
+                displaySuggestions(response.suggestions);
+            } else {
+                showNotification('No suggestions available for this date', 'info');
+            }
+        },
+        error: function(err) {
+            showNotification('Error getting suggestions', 'error');
+        }
+    });
+}
+
+function displaySuggestions(suggestions) {
+    const suggestionsList = $('#suggestionsList');
+    const suggestionsSection = $('#suggestionsSection');
+    
+    let html = '';
+    suggestions.forEach((suggestion, index) => {
+        html += `
+        <div class="suggestion-item border-bottom pb-3 mb-3">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <strong>${suggestion.start_time} - ${suggestion.end_time}</strong>
+                </div>
+                <button class="btn btn-sm btn-outline-primary" onclick="applySuggestion('${suggestion.date}', '${suggestion.start_time}', '${suggestion.end_time}', ${suggestion.rooms[0].id})">
+                    Use This
+                </button>
+            </div>
+            <div class="mt-2">
+                <small class="text-muted">Available Rooms:</small>
+                <div class="mt-1">
+        `;
+        
+        suggestion.rooms.forEach((room, roomIndex) => {
+            html += `
+            <span class="badge bg-light text-dark me-1" style="cursor: pointer;" 
+                  onclick="selectRoom(${room.id})">
+                ${room.name} (${room.capacity})
+            </span>
+            `;
+        });
+        
+        html += `
+                </div>
+            </div>
+        </div>
+        `;
+    });
+    
+    suggestionsList.html(html);
+    suggestionsSection.show();
+}
+
+function applySuggestion(date, startTime, endTime, roomId) {
+    $('#rescheduleDate').val(date);
+    $('#startTime').val(startTime);
+    $('#endTime').val(endTime);
+    
+    // Select the room in dropdown
+    $('#roomId').val(roomId);
+    
+    showNotification('Suggestion applied! You can still modify the selections.', 'success');
+}
+
+function selectRoom(roomId) {
+    $('#roomId').val(roomId);
+    showNotification('Room selected!', 'success');
+}
+
+function submitReschedule() {
+    const formData = new FormData(document.getElementById('rescheduleForm'));
+    const data = Object.fromEntries(formData.entries());
+
+    // Validate that all required fields are filled
+    if (!data.date || !data.start_time || !data.end_time || !data.room_id || !data.reason) {
+        showNotification('Please fill all required fields', 'warning');
+        return;
+    }
+
+    $.ajax({
+        url: '/api/reschedule',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify(data),
+        success: function(response) {
+            if (response.success) {
+                showNotification('Schedule rescheduled successfully!', 'success');
+                $('#rescheduleModal').modal('hide');
+                refreshScheduleTable();
+            } else {
+                showNotification(response.message, 'warning');
+            }
+        },
+        error: function(err) {
+            showNotification('Error occurred during rescheduling', 'error');
+        }
     });
 }
 
