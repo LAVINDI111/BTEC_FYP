@@ -516,6 +516,9 @@ function rescheduleClass(scheduleId) {
  */
 
 function rescheduleClass(scheduleId) {
+    // Remove any existing modal first
+    $('#rescheduleModal').remove();
+    
     $.get(`/api/schedule/${scheduleId}`, function(schedule) {
         const modalHtml = `
         <div class="modal fade" id="rescheduleModal" tabindex="-1">
@@ -590,6 +593,8 @@ function rescheduleClass(scheduleId) {
         
         // Load rooms for the original schedule
         loadRoomsForSchedule(schedule.room_id);
+    }).fail(function(xhr, status, error) {
+        showNotification('Error loading schedule data: ' + error, 'error');
     });
 }
 
