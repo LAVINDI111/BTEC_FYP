@@ -369,6 +369,17 @@ def get_reschedule_suggestions():
     if not schedule:
         return jsonify({"success": False, "message": "Schedule not found."})
     
+    # Calculate original duration
+    dummy_date = datetime(2023, 1, 1).date()  # Use a fixed date for time calculations
+    original_start_dt = datetime.combine(dummy_date, schedule.start_time)
+    original_end_dt = datetime.combine(dummy_date, schedule.end_time)
+    
+    # Handle case where end_time might be on next day (crosses midnight)
+    if schedule.end_time <= schedule.start_time and schedule.start_time > time(0, 0):
+        original_end_dt = datetime.combine(dummy_date + timedelta(days=1), schedule.end_time)
+    
+    duration = original_end_dt - original_start_dt
+    
     # Get lecturer's busy slots on the preferred date
     lecturer_busy_slots = Schedule.query.filter(
         Schedule.lecturer_id == schedule.lecturer_id,
@@ -379,28 +390,34 @@ def get_reschedule_suggestions():
     # Get all rooms
     rooms = Room.query.all()
     
-    # Generate time suggestions (e.g., every 30 minutes from 8 AM to 6 PM)
+    # Generate time suggestions (using original duration)
     suggestions = []
     start_hour = 8
     end_hour = 18
-    interval = 30  # minutes
     
-    # Create time slots
+    # Create time slots with original duration, incrementing by 30 minutes
     time_slots = []
-    current_time = datetime.strptime(f"{start_hour:02d}:00", "%H:%M").time()
+    current_start = datetime.strptime(f"{start_hour:02d}:00", "%H:%M").time()
     
-    while current_time.hour < end_hour:
-        slot_start = current_time
-        slot_end = (
-            datetime.combine(datetime.today(), slot_start) + 
-            timedelta(minutes=interval)
-        ).time()
+    while current_start.hour < end_hour:
+        slot_start = current_start
+        # Calculate end time based on original duration
+        slot_start_dt = datetime.combine(dummy_date, slot_start)
+        slot_end_dt = slot_start_dt + duration
+        slot_end = slot_end_dt.time()
         
-        if slot_end.hour >= end_hour:
+        # Check if the slot is within working hours
+        if slot_end.hour < end_hour or (slot_end.hour == end_hour and slot_end.minute == 0):
+            time_slots.append((slot_start, slot_end))
+        
+        # Move to next 30-minute slot
+        current_start_dt = datetime.combine(dummy_date, current_start)
+        current_start_dt += timedelta(minutes=30)
+        current_start = current_start_dt.time()
+        
+        # Break if we've gone past end of day
+        if current_start.hour >= end_hour:
             break
-            
-        time_slots.append((slot_start, slot_end))
-        current_time = slot_end
     
     # Check each time slot for availability
     for start_time, end_time in time_slots:
