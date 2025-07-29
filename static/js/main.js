@@ -177,7 +177,82 @@ function showScheduleModal() {
     loadDropdownData();
 }
 
+/**
+ * Load data for dropdown menus
+ 
+function loadDropdownData() {
+    // This would typically make AJAX calls to get data from server
+    // For now, we'll use placeholder data
+    
+    // Load lecturers
+    const lecturers = [
+        { id: 1, name: 'Dr. Sakunika Perera' },
+        { id: 2, name: 'Prof. John Gunawardhana' },
+        { id: 3, name: 'Ms. Chathuni De Silva ' },
+        { id: 4, name: 'Mr. Indunil Bandara' },
+        { id: 5, name: 'Prof. Chanaka Thilakarathne' },
+        { id: 6, name: 'Mr. Prasanna Jayawarna ' },
 
+    ];
+    
+    const lecturerSelect = $('#lecturer');
+    lecturers.forEach(lecturer => {
+        lecturerSelect.append(`<option value="${lecturer.id}">${lecturer.name}</option>`);
+    });
+    
+    // Load rooms
+    const rooms = [
+        { id: 1, name: 'LR1' },
+        { id: 2, name: 'LR2' },
+        { id: 3, name: 'LR3' },
+        { id: 4, name: 'LR4' },
+        { id: 5, name: 'LR5' },
+        { id: 6, name: 'LR6' },
+        { id: 7, name: 'Com Lab 1' },
+        { id: 8, name: 'Com Lab 2' },
+        { id: 9, name: 'Com Lab 3' },
+        { id: 10, name: 'DSM lab' },
+        { id: 11, name: 'DC lab' },
+        { id: 12, name: 'CSP lab' },
+        { id: 13, name: "E'tronic lab" }
+    ];
+    
+    const roomSelect = $('#room');
+    rooms.forEach(room => {
+        roomSelect.append(`<option value="${room.id}">${room.name}</option>`);
+    });
+    
+    // Load programs
+    const programs = [
+        { id: 1, name: 'HND in Computer Science' },
+        { id: 2, name: 'BTEC HND in Computing' },
+        { id: 3, name: 'HND in Software Engineering' },
+        { id: 4, name: 'BSc in EEE' },
+        { id: 5, name: 'BSc in AI' },
+        { id: 6, name: 'Certificate in Computer Science' }
+
+    ];
+    
+    const programSelect = $('#program');
+    programs.forEach(program => {
+        programSelect.append(`<option value="${program.id}">${program.name}</option>`);
+    });
+    
+    // Load modules
+    const modules = [
+        { id: 1, name: 'Programming Fundamentals' },
+        { id: 2, name: 'Database Systems' },
+        { id: 3, name: 'Web Development' },
+        { id: 4, name: 'Software Engineering Basics' },
+        { id: 5, name: 'Introduction to AI' },
+        { id: 6, name: 'IOT' }
+    ];
+    
+    const moduleSelect = $('#module');
+    modules.forEach(module => {
+        moduleSelect.append(`<option value="${module.id}">${module.name}</option>`);
+    });
+}*/
 
 //Load data for dropdown menus - new version _21 st
 function loadDropdownData() {
