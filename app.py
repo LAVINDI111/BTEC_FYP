@@ -3,6 +3,7 @@ ACNSMS - Automated Campus Notification and Schedule Management System
 Main Flask Application File
 """
 
+import time
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -14,6 +15,8 @@ import os
 from config import config
 from sqlalchemy.orm import joinedload
 from app import User
+from reSchedule_email_sender import send_reschedule_email
+
 
 # Create the Flask app
 app = Flask(__name__)
@@ -68,6 +71,7 @@ def register():
         role = request.form['role']
         department = request.form['department']
         password = request.form['password']
+        specialize_path = request.form.get('specializePath', '')
 
         if User.query.filter_by(userName=username).first():
             flash('Username already exists!', 'error')
@@ -90,10 +94,23 @@ def register():
 
         try:
             db.session.add(new_user)
+            db.session.flush() 
             db.session.commit()
 
             if role == 'student':
                 specialize_path = request.form.get('specializePath', '')
+                program_id = request.form.get('programId')
+                module_id = request.form.get('moduleId')
+
+                # 🛡️ Check if student already exists
+                #existing_student = Student.query.filter_by(userId=new_user.id).first()
+                #if existing_student:
+                    #flash('Student already exists for this user!', 'error')
+                    #return render_template('register.html')
+                
+                if not specialize_path:
+                    flash("Specialization path required for students", "error")
+                    return render_template('register.html')
                 student = Student(
                     userId=new_user.id,
                     sfId=f"SF{new_user.id:04d}",
@@ -103,6 +120,7 @@ def register():
                     specializePath=specialize_path
                 )
                 db.session.add(student)
+                
             elif role == 'lecturer':
                 lecturer = Lecturer(
                     fullName=f"{fname} {lname}",
@@ -111,6 +129,7 @@ def register():
                     phone=phone
                 )
                 db.session.add(lecturer)
+
             elif role == 'admin':
                 admin = Admin(
                     fullName=f"{fname} {lname}",
@@ -131,10 +150,12 @@ def register():
             )
             db.session.add(log)
             db.session.commit()
+            flash('Registration successful! Please login.', 'success')
             return redirect(url_for('login'))
 
         except Exception as e:
             db.session.rollback()
+            print(f"Registration error: {e}")  # 👈 check terminal carefully
             flash('Registration failed. Please try again.', 'error')
             print(f"Registration error: {e}")
     return render_template('register.html')
@@ -289,6 +310,7 @@ def get_schedule(schedule_id):
 #@app.route('/reschedule', methods=['POST'])
 @login_required
 def reschedule_schedule():
+    print("🚀 /api/reschedule triggered")  # STEP 1: ENTRY POINT
     data = request.get_json()
     schedule_id = int(data['schedule_id'])
     new_date = datetime.strptime(data['date'], '%Y-%m-%d').date()
@@ -300,8 +322,14 @@ def reschedule_schedule():
 
     schedule = Schedule.query.get(schedule_id)
     if not schedule:
+        print("❌ Schedule not found")
         return jsonify({"success": False, "message": "Schedule not found."})
         #return jsonify({'error': 'Schedule not found'}), 404
+
+    # Save old values before updating
+    old_date = schedule.date
+    old_start = schedule.start_time
+    old_end = schedule.end_time
 
     # Check for conflicts (same room, date, overlapping time)
     conflict = Schedule.query.filter(
@@ -313,6 +341,7 @@ def reschedule_schedule():
     ).first()
 
     if conflict:
+        print("❌ Conflict detected:", conflict)
         return jsonify({
             "success": False,
             "message": f"Conflict: Room already booked from {conflict.start_time.strftime('%H:%M')} to {conflict.end_time.strftime('%H:%M')}"
@@ -338,6 +367,48 @@ def reschedule_schedule():
     schedule.end_time = new_end
     db.session.commit()
 
+    # Get related module and program
+    module = Module.query.get(schedule.module_id)
+    room = Room.query.get(schedule.room_id)
+    lecturer = Lecturer.query.get(schedule.lecturer_id)
+    program = Program.query.get(schedule.program_id)
+
+    print("📌 Rescheduling:", module.name, room.name, lecturer.fullName, program.name)
+
+    # Fetch all students who belong to this program or department
+    #students = Student.query.filter_by(department=program.name).all()
+    students = Student.query.join(User).filter(Student.department.ilike(program.name)).all()
+    recipient_emails = [student.email for student in students]
+    bcc_emails = ['admin@acnsms.com']
+
+    print(f"📧 Students found: {len(students)}")
+    for s in students:
+        print(f"🔗 Matched student: {s.email}, Dept: {s.department}")
+
+
+    # send emails
+    for recipient in recipient_emails:
+        try:
+            print(f"📤 Sending email to {recipient} for module {module.name}")
+            send_reschedule_email(
+                subject_t=f"⏰ Class Reschedule Notification - {module.name}",
+                subject=module.name,
+                r_email=recipient,
+                BCC_email=", ".join(bcc_emails),
+                module_id=module.name,
+                old_date=old_date.strftime('%Y-%m-%d'),
+                new_date=new_date.strftime('%Y-%m-%d'),
+                new_start_time=new_start.strftime('%H:%M'),
+                new_end_time=new_end.strftime('%H:%M'),
+                room_id=room.name,
+                lecturer_id=lecturer.fullName,
+                reason=reason
+            )
+            print(f"✅ Email sent to {recipient}")
+        except Exception as e:
+            print(f"❌ Failed to send email to {recipient}: {str(e)}")
+
+
     # Log the change
     log = AuditLog(
         user_id=current_user.id,
@@ -351,6 +422,8 @@ def reschedule_schedule():
     return jsonify({
     "success": True,
     "message": "Schedule updated successfully."
+    #send_reschedule_email()
+
     })
 
     #return jsonify({'message': 'Rescheduled successfully'})
