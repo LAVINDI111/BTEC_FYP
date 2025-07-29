@@ -76,10 +76,7 @@ class Student(db.Model):
     ##module_id = db.Column(db.Integer, db.ForeignKey('module.id'), nullable=True)
 
 
-    # Relationships
-    #attendances = db.relationship('Attendance', backref='student', cascade="all, delete-orphan", lazy=True)
-    #program = db.relationship('Program', backref='students', lazy=True)
-    #module = db.relationship('Module', backref='students', lazy=True)
+
 
 # ----------------------------------
 # Academic Structure

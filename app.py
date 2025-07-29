@@ -234,17 +234,7 @@ def api_schedules():
                 'status': schedule.status
             }
         })
-    ######################################## 21
-    #else:
-        #schedules = Schedule.query.all()
-        #return jsonify([{
-            #'id': s.id,
-            #'date': s.date.strftime('%Y-%m-%d'),
-            #'start_time': s.start_time.strftime('%H:%M'),
-            #'end_time': s.end_time.strftime('%H:%M'),
-            #'subject': s.subject,
-            #'status': s.status
-        #} for s in schedules])
+    
     else:
         schedules = Schedule.query.options(
             joinedload(Schedule.room),
