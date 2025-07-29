@@ -105,9 +105,10 @@ class Program(db.Model):
     #schedules = db.relationship('Schedule', backref='program', lazy=True)
 
 class SpecializePath(db.Model):
-    __tablename__ = 'specializePath'
+    __tablename__ = 'specializepath' 
     id = db.Column(db.Integer, primary_key=True)
     pathCode = db.Column(db.String(20), unique=True, nullable=False)
+    name = db.Column(db.String(100), nullable=False)
 
 class Module(db.Model):
     __tablename__ = 'module'

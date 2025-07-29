@@ -14,6 +14,8 @@ import os
 from config import config
 from sqlalchemy.orm import joinedload
 from app import User
+from sqlalchemy.exc import IntegrityError 
+import traceback 
 
 # Create the Flask app
 app = Flask(__name__)
@@ -52,6 +54,9 @@ def login():
             log = AuditLog(user_id=user.id, action='Logged In', target_type='User', target_id=user.id)
             db.session.add(log)
             db.session.commit()
+            
+            flash(f"USER_ROLE:{user.role}", "info") 
+            
             return redirect(url_for('dashboard'))
         else:
             flash('Invalid username or password!', 'error')
@@ -69,12 +74,14 @@ def register():
         department = request.form['department']
         password = request.form['password']
 
+        # --- Basic uniqueness checks ---
         if User.query.filter_by(userName=username).first():
             flash('Username already exists!', 'error')
             return render_template('register.html')
         if User.query.filter_by(email=email).first():
             flash('Email already registered!', 'error')
             return render_template('register.html')
+        # --------------------------------
 
         password_hash = generate_password_hash(password)
         new_user = User(
@@ -90,19 +97,49 @@ def register():
 
         try:
             db.session.add(new_user)
-            db.session.commit()
+            db.session.commit() # new_user.id should now be populated
 
+            # --- Role-specific object creation with validation ---
             if role == 'student':
-                specialize_path = request.form.get('specializePath', '')
+                specialize_path_abbr = request.form.get('specializePath', '').strip()
+
+                if not specialize_path_abbr:
+                    flash('Specialization path is required for students.', 'error')
+                    db.session.delete(new_user) # Remove the User just created to avoid orphaned record
+                    db.session.commit()
+                    return render_template('register.html')
+
+                try:
+                    
+                    specialization_record = SpecializePath.query.filter_by(pathCode=specialize_path_abbr).first()
+
+                    if not specialization_record:
+                        flash(f'Selected specialization path "{specialize_path_abbr}" is invalid or not found in the system.', 'error')
+                        db.session.delete(new_user) # Remove the User just created
+                        db.session.commit()
+                        return render_template('register.html')
+
+                    specialize_path_id_to_store = specialization_record.id
+
+                except Exception as e:
+                    db.session.rollback()
+                    flash('An unexpected error occurred while processing the specialization path. Please try again.', 'error')
+                    app.logger.error(f"Error finding specialization path ID for '{specialize_path_abbr}': {e}")
+                    app.logger.error(traceback.format_exc())
+                    db.session.delete(new_user)
+                    db.session.commit()
+                    return render_template('register.html')
+
                 student = Student(
                     userId=new_user.id,
                     sfId=f"SF{new_user.id:04d}",
                     email=email,
                     phone=phone,
                     department=department,
-                    specializePath=specialize_path
+                    specializePath=specialize_path_id_to_store 
                 )
                 db.session.add(student)
+
             elif role == 'lecturer':
                 lecturer = Lecturer(
                     fullName=f"{fname} {lname}",
@@ -111,18 +148,23 @@ def register():
                     phone=phone
                 )
                 db.session.add(lecturer)
+
             elif role == 'admin':
                 admin = Admin(
                     fullName=f"{fname} {lname}",
                     adminId=f"ADM{new_user.id:04d}",
                     email=email,
                     phone=phone
+                    # Consider if department is needed here based on your Admin model
                 )
                 db.session.add(admin)
+            # -----------------------------------------------------
 
+            # Commit role-specific object
             db.session.commit()
             flash('Registration successful! Please login.', 'success')
 
+            # --- Audit Log (optional, can be outside main try if less critical) ---
             log = AuditLog(
                 user_id=new_user.id,
                 action='User Registered',
@@ -131,23 +173,49 @@ def register():
             )
             db.session.add(log)
             db.session.commit()
+            # -----------------------------------------------------------------------
+
             return redirect(url_for('login'))
 
-        except Exception as e:
+        except IntegrityError as ie:
             db.session.rollback()
-            flash('Registration failed. Please try again.', 'error')
-            print(f"Registration error: {e}")
+            flash('Registration failed due to a data conflict (e.g., duplicate ID, missing required data). Please check your input.', 'error')
+            # --- Log the specific database error ---
+            app.logger.error(f"IntegrityError during registration: {ie}") # Use your app's logger
+            app.logger.error(f"IntegrityError Statement: {ie.statement}")
+            app.logger.error(f"IntegrityError Parameters: {ie.params}")
+            # Or print for development (check server console/logs):
+            print(f"IntegrityError during registration: {ie}")
+            print(f"Statement: {ie.statement}")
+            print(f"Parameters: {ie.params}")
+            # -------------------------------
+            return render_template('register.html') # Return to form after error
+
+        except Exception as e: # General catch for other unexpected errors
+            db.session.rollback()
+            flash('Registration failed due to an unexpected error. Please try again.', 'error')
+            # --- Log the full unexpected error ---
+            app.logger.error(f"Unexpected error during registration: {e}")
+            app.logger.error(traceback.format_exc()) # Logs the full stack trace
+            # Or print for development:
+            print(f"Unexpected error during registration: {e}")
+            print(traceback.format_exc()) # Prints the full stack trace
+            # -------------------------------
+            return render_template('register.html') # Return to form after error
+
     return render_template('register.html')
 
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    if current_user.role == 'admin':
-        return render_template('dashboard/admin.html')
-    elif current_user.role == 'lecturer':
-        return render_template('dashboard/lecturer.html')
-    else:
-        return render_template('dashboard/student.html')
+    user_role = current_user.role 
+
+    if user_role == 'admin':
+        return render_template('dashboard/admin.html', user_role=user_role)
+    elif user_role == 'lecturer':
+        return render_template('dashboard/lecturer.html', user_role=user_role)
+    else: 
+        return render_template('dashboard/student.html', user_role=user_role)
 
 @app.route('/logout')
 @login_required

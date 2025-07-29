@@ -787,8 +787,17 @@ function formatDate(dateString) {
  * Get current user role (placeholder)
  */
 function getCurrentUserRole() {
-    // This would get the actual user role from session/server
-    return 'lecturer'; // placeholder
+    try {
+        const role = localStorage.getItem('acnsms_userRole');
+        if (role && (role === 'student' || role === 'lecturer' || role === 'admin')) {
+            return role;
+        }
+        // console.warn("getCurrentUserRole (main.js): Role not found in localStorage or invalid.");
+        return null;
+    } catch (e) {
+        console.error("Error reading user role from localStorage in main.js:", e);
+        return null;
+    }
 }
 
 /**
