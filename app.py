@@ -3,6 +3,7 @@ ACNSMS - Automated Campus Notification and Schedule Management System
 Main Flask Application File
 """
 
+import time
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -13,6 +14,9 @@ from models import *
 import os
 from config import config
 from sqlalchemy.orm import joinedload
+from app import User
+from reSchedule_email_sender import send_reschedule_email
+
 
 # Create the Flask app
 app = Flask(__name__)
@@ -67,6 +71,7 @@ def register():
         role = request.form['role']
         department = request.form['department']
         password = request.form['password']
+        specialize_path = request.form.get('specializePath', '')
 
         if User.query.filter_by(userName=username).first():
             flash('Username already exists!', 'error')
@@ -89,10 +94,23 @@ def register():
 
         try:
             db.session.add(new_user)
+            db.session.flush() 
             db.session.commit()
 
             if role == 'student':
                 specialize_path = request.form.get('specializePath', '')
+                program_id = request.form.get('programId')
+                module_id = request.form.get('moduleId')
+
+                # 🛡️ Check if student already exists
+                #existing_student = Student.query.filter_by(userId=new_user.id).first()
+                #if existing_student:
+                    #flash('Student already exists for this user!', 'error')
+                    #return render_template('register.html')
+                
+                if not specialize_path:
+                    flash("Specialization path required for students", "error")
+                    return render_template('register.html')
                 student = Student(
                     userId=new_user.id,
                     sfId=f"SF{new_user.id:04d}",
@@ -102,6 +120,7 @@ def register():
                     specializePath=specialize_path
                 )
                 db.session.add(student)
+                
             elif role == 'lecturer':
                 lecturer = Lecturer(
                     fullName=f"{fname} {lname}",
@@ -110,6 +129,7 @@ def register():
                     phone=phone
                 )
                 db.session.add(lecturer)
+
             elif role == 'admin':
                 admin = Admin(
                     fullName=f"{fname} {lname}",
@@ -130,10 +150,12 @@ def register():
             )
             db.session.add(log)
             db.session.commit()
+            flash('Registration successful! Please login.', 'success')
             return redirect(url_for('login'))
 
         except Exception as e:
             db.session.rollback()
+            print(f"Registration error: {e}")  # 👈 check terminal carefully
             flash('Registration failed. Please try again.', 'error')
             print(f"Registration error: {e}")
     return render_template('register.html')
@@ -178,7 +200,7 @@ def api_schedules():
             subject=data.get('subject', '(auto)'),
             status='Scheduled',
             room_id=int(data['room_id']),
-            lecturer_id=current_user.id,
+            lecturer_id=int(data.get('lecturer')),
             program_id=int(data['program_id']),
             module_id=int(data['module_id'])
         )
@@ -225,7 +247,6 @@ def api_schedules():
         #} for s in schedules])
     else:
         schedules = Schedule.query.options(
-            joinedload(Schedule.lecturer),
             joinedload(Schedule.room),
             joinedload(Schedule.program),
             joinedload(Schedule.module)
@@ -233,13 +254,14 @@ def api_schedules():
 
     result = []
     for s in schedules:
+        lecturer = Lecturer.query.get(s.lecturer_id) if s.lecturer_id else None
         result.append({
             'id': s.id,
             'date': s.date.strftime('%a, %b %d, %Y'),
             'start_time': s.start_time.strftime('%H:%M'),
             'end_time': s.end_time.strftime('%H:%M'),
             'subject': s.module.name if s.module else '(no module)',
-            'lecturer': f"{s.lecturer.fName} {s.lecturer.lName}" if s.lecturer else 'Unknown',
+            'lecturer': f"{lecturer.fullName}" if lecturer else 'Unknown',
             'room': s.room.name if s.room else 'Unknown',
             'program': s.program.name if s.program else 'Unknown',
             'status': s.status if s.status else 'Scheduled'
@@ -288,6 +310,7 @@ def get_schedule(schedule_id):
 #@app.route('/reschedule', methods=['POST'])
 @login_required
 def reschedule_schedule():
+    print("🚀 /api/reschedule triggered")  # STEP 1: ENTRY POINT
     data = request.get_json()
     schedule_id = int(data['schedule_id'])
     new_date = datetime.strptime(data['date'], '%Y-%m-%d').date()
@@ -299,8 +322,14 @@ def reschedule_schedule():
 
     schedule = Schedule.query.get(schedule_id)
     if not schedule:
+        print("❌ Schedule not found")
         return jsonify({"success": False, "message": "Schedule not found."})
         #return jsonify({'error': 'Schedule not found'}), 404
+
+    # Save old values before updating
+    old_date = schedule.date
+    old_start = schedule.start_time
+    old_end = schedule.end_time
 
     # Check for conflicts (same room, date, overlapping time)
     conflict = Schedule.query.filter(
@@ -312,6 +341,7 @@ def reschedule_schedule():
     ).first()
 
     if conflict:
+        print("❌ Conflict detected:", conflict)
         return jsonify({
             "success": False,
             "message": f"Conflict: Room already booked from {conflict.start_time.strftime('%H:%M')} to {conflict.end_time.strftime('%H:%M')}"
@@ -337,6 +367,48 @@ def reschedule_schedule():
     schedule.end_time = new_end
     db.session.commit()
 
+    # Get related module and program
+    module = Module.query.get(schedule.module_id)
+    room = Room.query.get(schedule.room_id)
+    lecturer = Lecturer.query.get(schedule.lecturer_id)
+    program = Program.query.get(schedule.program_id)
+
+    print("📌 Rescheduling:", module.name, room.name, lecturer.fullName, program.name)
+
+    # Fetch all students who belong to this program or department
+    #students = Student.query.filter_by(department=program.name).all()
+    students = Student.query.join(User).filter(Student.department.ilike(program.name)).all()
+    recipient_emails = [student.email for student in students]
+    bcc_emails = ['admin@acnsms.com']
+
+    print(f"📧 Students found: {len(students)}")
+    for s in students:
+        print(f"🔗 Matched student: {s.email}, Dept: {s.department}")
+
+
+    # send emails
+    for recipient in recipient_emails:
+        try:
+            print(f"📤 Sending email to {recipient} for module {module.name}")
+            send_reschedule_email(
+                subject_t=f"⏰ Class Reschedule Notification - {module.name}",
+                subject=module.name,
+                r_email=recipient,
+                BCC_email=", ".join(bcc_emails),
+                module_id=module.name,
+                old_date=old_date.strftime('%Y-%m-%d'),
+                new_date=new_date.strftime('%Y-%m-%d'),
+                new_start_time=new_start.strftime('%H:%M'),
+                new_end_time=new_end.strftime('%H:%M'),
+                room_id=room.name,
+                lecturer_id=lecturer.fullName,
+                reason=reason
+            )
+            print(f"✅ Email sent to {recipient}")
+        except Exception as e:
+            print(f"❌ Failed to send email to {recipient}: {str(e)}")
+
+
     # Log the change
     log = AuditLog(
         user_id=current_user.id,
@@ -350,11 +422,121 @@ def reschedule_schedule():
     return jsonify({
     "success": True,
     "message": "Schedule updated successfully."
+    #send_reschedule_email()
+
     })
 
     #return jsonify({'message': 'Rescheduled successfully'})
 
 # end of reschedule route 
+
+@app.route('/api/reschedule/suggestions', methods=['POST'])
+@login_required
+def get_reschedule_suggestions():
+    data = request.get_json()
+    schedule_id = int(data['schedule_id'])
+    preferred_date = datetime.strptime(data['date'], '%Y-%m-%d').date()
+    
+    # Get the original schedule
+    schedule = Schedule.query.get(schedule_id)
+    if not schedule:
+        return jsonify({"success": False, "message": "Schedule not found."})
+    
+    # Calculate original duration
+    dummy_date = datetime(2023, 1, 1).date()  # Use a fixed date for time calculations
+    original_start_dt = datetime.combine(dummy_date, schedule.start_time)
+    original_end_dt = datetime.combine(dummy_date, schedule.end_time)
+    
+    # Handle case where end_time might be on next day (crosses midnight)
+    if schedule.end_time <= schedule.start_time and schedule.start_time > time(0, 0):
+        original_end_dt = datetime.combine(dummy_date + timedelta(days=1), schedule.end_time)
+    
+    duration = original_end_dt - original_start_dt
+    
+    # Get lecturer's busy slots on the preferred date
+    lecturer_busy_slots = Schedule.query.filter(
+        Schedule.lecturer_id == schedule.lecturer_id,
+        Schedule.date == preferred_date,
+        Schedule.id != schedule_id  # Exclude the current schedule
+    ).all()
+    
+    # Get all rooms
+    rooms = Room.query.all()
+    
+    # Generate time suggestions (using original duration)
+    suggestions = []
+    start_hour = 8
+    end_hour = 18
+    
+    # Create time slots with original duration, incrementing by 30 minutes
+    time_slots = []
+    current_start = datetime.strptime(f"{start_hour:02d}:00", "%H:%M").time()
+    
+    while current_start.hour < end_hour:
+        slot_start = current_start
+        # Calculate end time based on original duration
+        slot_start_dt = datetime.combine(dummy_date, slot_start)
+        slot_end_dt = slot_start_dt + duration
+        slot_end = slot_end_dt.time()
+        
+        # Check if the slot is within working hours
+        if slot_end.hour < end_hour or (slot_end.hour == end_hour and slot_end.minute == 0):
+            time_slots.append((slot_start, slot_end))
+        
+        # Move to next 30-minute slot
+        current_start_dt = datetime.combine(dummy_date, current_start)
+        current_start_dt += timedelta(minutes=30)
+        current_start = current_start_dt.time()
+        
+        # Break if we've gone past end of day
+        if current_start.hour >= end_hour:
+            break
+    
+    # Check each time slot for availability
+    for start_time, end_time in time_slots:
+        # Check if lecturer is available
+        lecturer_available = True
+        for busy_slot in lecturer_busy_slots:
+            if (start_time < busy_slot.end_time and end_time > busy_slot.start_time):
+                lecturer_available = False
+                break
+        
+        if lecturer_available:
+            # Find available rooms for this time slot
+            available_rooms = []
+            for room in rooms:
+                # Check if room is available
+                room_conflict = Schedule.query.filter(
+                    Schedule.room_id == room.id,
+                    Schedule.date == preferred_date,
+                    Schedule.start_time < end_time,
+                    Schedule.end_time > start_time
+                ).first()
+                
+                if not room_conflict:
+                    available_rooms.append({
+                        'id': room.id,
+                        'name': room.name,
+                        'capacity': room.capacity
+                    })
+            
+            # Sort rooms by capacity (closest to original room's capacity)
+            original_room = Room.query.get(schedule.room_id)
+            if original_room:
+                available_rooms.sort(key=lambda x: abs(x['capacity'] - original_room.capacity))
+            
+            if available_rooms:
+                suggestions.append({
+                    'date': preferred_date.strftime('%Y-%m-%d'),
+                    'start_time': start_time.strftime('%H:%M'),
+                    'end_time': end_time.strftime('%H:%M'),
+                    'rooms': available_rooms[:3]  # Limit to top 3 rooms
+                })
+    
+    return jsonify({
+        "success": True,
+        "suggestions": suggestions[:5]  # Limit to top 5 time suggestions
+    })
 
 # 21_ return data lecturer/room/modules/program
 @app.route('/api/lecturers', methods=['GET'])
@@ -374,7 +556,8 @@ def get_rooms():
     return jsonify([
         {
             'id': room.id,
-            'name': room.name
+            'name': room.name,
+            'capacity': room.capacity
         } for room in rooms
     ])
 
