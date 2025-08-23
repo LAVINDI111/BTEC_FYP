@@ -307,24 +307,34 @@ def get_schedule(schedule_id):
 # route for reschedule
 
 @app.route('/api/reschedule', methods=['POST'])
-#@app.route('/reschedule', methods=['POST'])
 @login_required
 def reschedule_schedule():
-    print("🚀 /api/reschedule triggered")  # STEP 1: ENTRY POINT
     data = request.get_json()
     schedule_id = int(data['schedule_id'])
     new_date = datetime.strptime(data['date'], '%Y-%m-%d').date()
     new_start = datetime.strptime(data['start_time'], '%H:%M').time()
     new_end = datetime.strptime(data['end_time'], '%H:%M').time()
-    # new raw after adding reschedule
     reason = data.get('reason', 'No reason provided')
-
 
     schedule = Schedule.query.get(schedule_id)
     if not schedule:
-        print("❌ Schedule not found")
         return jsonify({"success": False, "message": "Schedule not found."})
-        #return jsonify({'error': 'Schedule not found'}), 404
+
+    # --- Correct Permission Check ---
+    lecturer = Lecturer.query.get(schedule.lecturer_id)
+    lecturer_name = lecturer.fullName if lecturer else None
+    lecturer_email = lecturer.email if lecturer else None
+    current_name = f"{current_user.fName} {current_user.lName}"
+    current_email = current_user.email
+
+    # Only allow if admin or lecturer matches (by name or email)
+    if current_user.role == 'lecturer':
+        # If the schedule's lecturer email does not match the logged-in lecturer's email, block
+        if lecturer_email != current_email and lecturer_name != current_name:
+            return jsonify({
+                "success": False,
+                "message": "You cannot reschedule this subject."
+            }), 403
 
     # Save old values before updating
     old_date = schedule.date
@@ -341,7 +351,6 @@ def reschedule_schedule():
     ).first()
 
     if conflict:
-        print("❌ Conflict detected:", conflict)
         return jsonify({
             "success": False,
             "message": f"Conflict: Room already booked from {conflict.start_time.strftime('%H:%M')} to {conflict.end_time.strftime('%H:%M')}"
@@ -629,4 +638,7 @@ if __name__ == '__main__':
     init_db()
     print("ACNSMS Application Starting...")
     print("Access the application at: http://localhost:5000")
-    app.run(debug=True, host='0.0.0.0', port=5000)  
+    app.run(debug=True, host='0.0.0.0', port=5000)
+
+
+

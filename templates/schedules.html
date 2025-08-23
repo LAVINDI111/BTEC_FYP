@@ -259,7 +259,7 @@ function saveSchedule() {
         body: JSON.stringify(data)
     })
     .then(res => res.json())
-    .then(result => {
+    .then((result) => {
         //if (result.status === 'success') {
         if (result.success) {
             //showToast("Schedule saved successfully!", "success");
@@ -375,6 +375,19 @@ document.getElementById("rescheduleForm").addEventListener("submit", function (e
 });
 // end of that function
 
+    const currentUserRole = "{{ current_user.role }}";
+    const currentLecturerName = "{{ current_user.fName }} {{ current_user.lName }}";
+    const currentLecturerEmail = "{{ current_user.email }}";
 
+    // Example usage in your table rendering
+    // data.forEach(schedule => {
+    //     const canReschedule = (
+    //         currentUserRole === 'admin' ||
+    //         (currentUserRole === 'lecturer' && (
+    //             schedule.lecturer === currentLecturerName || schedule.lecturer_email === currentLecturerEmail
+    //         ))
+    //     );
+    //     // ...render table row with button only if canReschedule is true...
+    // });
 </script>
 {% endblock %}
